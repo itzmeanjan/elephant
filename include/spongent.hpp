@@ -85,10 +85,43 @@ constexpr uint8_t RevLCounter176[]{
   206, 102, 50,  152, 76,  166, 82,  168, 84,  170, 212, 234, 244, 250, 252
 };
 
+// XORs precomputed round constant into Spongent-π-W permutation state
+//
+// Ensure template parameter `slen` = W ∈ {160, 176}.
+//
+// Also note, when `slen` = 160, round identifier 0 <= `r_idx` < 80
+//            when `slen` = 176, 0 <= `r_idx` < 90
+//
+// See line 1 of algorithms defined in section 2.{3, 4}.1 of Elephant
+// specification
+// https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
+template<const size_t slen, const size_t r_idx>
+inline static void
+apply_rc(uint8_t* const state)
+{
+  constexpr size_t sbytes = slen >> 3;
+
+  if constexpr (slen == 160) {
+    static_assert(r_idx < 80);
+
+    state[0] ^= LCounter160[r_idx];
+    state[sbytes - 1] ^= RevLCounter160[r_idx];
+  } else if constexpr (slen == 176) {
+    static_assert(r_idx < 90);
+
+    state[0] ^= LCounter176[r_idx];
+    state[sbytes - 1] ^= RevLCounter176[r_idx];
+  }
+}
+
 // Applies 8 -bit substitution box ( 20/ 22 times ) on 160/ 176 -bit
 // Spongent-π-W permutation state
 //
 // Ensure template parameter `slen` = W ∈ {160, 176}.
+//
+// See line 2 of algorithms defined in section 2.{3, 4}.1 of Elephant
+// specification
+// https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 template<const size_t slen>
 inline static void
 apply_sbox(uint8_t* const state)
