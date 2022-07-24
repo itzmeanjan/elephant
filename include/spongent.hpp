@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 // Spongent-π[W] permutation | W ∈ {160, 176}
 namespace spongent {
@@ -85,6 +86,14 @@ constexpr uint8_t RevLCounter176[]{
   206, 102, 50,  152, 76,  166, 82,  168, 84,  170, 212, 234, 244, 250, 252
 };
 
+// Ensure that either Spongent-π[160] or Spongent-π[176] is being applied on
+// permutation state, in compile-time
+constexpr inline static bool
+check_state_bit_len(const size_t slen)
+{
+  return (slen == 160) || (slen == 176);
+}
+
 // XORs precomputed round constant into Spongent-π-W permutation state
 //
 // Ensure template parameter `slen` = W ∈ {160, 176}.
@@ -97,7 +106,7 @@ constexpr uint8_t RevLCounter176[]{
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 template<const size_t slen, const size_t r_idx>
 inline static void
-apply_rc(uint8_t* const state)
+apply_rc(uint8_t* const state) requires(check_state_bit_len(slen))
 {
   constexpr size_t sbytes = slen >> 3;
 
@@ -124,13 +133,64 @@ apply_rc(uint8_t* const state)
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 template<const size_t slen>
 inline static void
-apply_sbox(uint8_t* const state)
+apply_sbox(uint8_t* const state) requires(check_state_bit_len(slen))
 {
   constexpr size_t nsbox = slen >> 3;
 
   for (size_t i = 0; i < nsbox; i++) {
     state[i] = SBox[state[i]];
   }
+}
+
+// Calculates final bit position of given bit index ( `b_idx` ), after applying
+// bit permutation, during Spongent-π-W permutation round
+//
+// Ensure template parameter `slen` = W ∈ {160, 176}.
+//
+// See formula defined in section 2.{3, 4}.1 of Elephant specification
+// https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
+template<const size_t slen>
+inline static size_t
+pi(const size_t b_idx) requires(check_state_bit_len(slen))
+{
+  constexpr size_t factor = slen >> 2;
+
+  if (b_idx == (slen - 1)) {
+    return b_idx;
+  } else {
+    return (b_idx * factor) % (slen - 1);
+  }
+}
+
+// Applies bit permutation on Spongent-π-W permutation state,
+// such that `slen` = W = {160, 176}
+//
+// See formula defined in section 2.{3, 4}.1 of Elephant specification
+// https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
+template<const size_t slen>
+inline static void
+apply_permutation(uint8_t* const state) requires(check_state_bit_len(slen))
+{
+  constexpr size_t sbytes = slen >> 3;
+
+  uint8_t tmp[sbytes]{};
+  std::memset(tmp, 0, sizeof(tmp));
+
+  for (size_t i = 0; i < slen; i++) {
+    const size_t byte_off = i >> 3;
+    const size_t bit_off = i & 7;
+
+    const uint8_t bit = (state[byte_off] >> bit_off) & 0b1;
+
+    const size_t permi = pi<slen>(i);
+
+    const size_t byte_off_ = permi >> 3;
+    const size_t bit_off_ = permi & 7;
+
+    tmp[byte_off_] ^= bit << bit_off_;
+  }
+
+  std::memcpy(state, tmp, sizeof(tmp));
 }
 
 }
