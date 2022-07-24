@@ -1,7 +1,8 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
-// Spongent-π[W] permutation | W = {160, 176}
+// Spongent-π[W] permutation | W ∈ {160, 176}
 namespace spongent {
 
 // Spongent permutation's 8-bit substitution Box, as defined in section 2.3.1 of
@@ -74,7 +75,7 @@ constexpr uint8_t LCounter176[]{
 // defined in section 2.4.1 of Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 //
-// Note, ∀ i ∈ [0, 80) RevLCounter176[i] = bit_reverse(LCounter176[i])
+// Note, ∀ i ∈ [0, 90) RevLCounter176[i] = bit_reverse(LCounter176[i])
 constexpr uint8_t RevLCounter176[]{
   162, 208, 104, 52,  154, 204, 230, 114, 184, 92,  174, 86,  42,  148, 202,
   228, 242, 248, 124, 190, 94,  46,  22,  10,  132, 194, 224, 112, 56,  28,
@@ -83,5 +84,20 @@ constexpr uint8_t RevLCounter176[]{
   176, 88,  44,  150, 74,  164, 210, 232, 116, 186, 220, 238, 118, 58,  156,
   206, 102, 50,  152, 76,  166, 82,  168, 84,  170, 212, 234, 244, 250, 252
 };
+
+// Applies 8 -bit substitution box ( 20/ 22 times ) on 160/ 176 -bit
+// Spongent-π-W permutation state
+//
+// Ensure template parameter `slen` = W ∈ {160, 176}.
+template<const size_t slen>
+inline static void
+apply_sbox(uint8_t* const state)
+{
+  constexpr size_t nsbox = slen >> 3;
+
+  for (size_t i = 0; i < nsbox; i++) {
+    state[i] = SBox[state[i]];
+  }
+}
 
 }
