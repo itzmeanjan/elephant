@@ -104,20 +104,17 @@ check_state_bit_len(const size_t slen)
 // See line 1 of algorithms defined in section 2.{3, 4}.1 of Elephant
 // specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
-template<const size_t slen, const size_t r_idx>
+template<const size_t slen>
 inline static void
-apply_rc(uint8_t* const state) requires(check_state_bit_len(slen))
+apply_rc(uint8_t* const state,
+         const size_t r_idx) requires(check_state_bit_len(slen))
 {
   constexpr size_t sbytes = slen >> 3;
 
   if constexpr (slen == 160) {
-    static_assert(r_idx < 80);
-
     state[0] ^= LCounter160[r_idx];
     state[sbytes - 1] ^= RevLCounter160[r_idx];
   } else if constexpr (slen == 176) {
-    static_assert(r_idx < 90);
-
     state[0] ^= LCounter176[r_idx];
     state[sbytes - 1] ^= RevLCounter176[r_idx];
   }
@@ -162,8 +159,8 @@ pi(const size_t b_idx) requires(check_state_bit_len(slen))
   }
 }
 
-// Applies bit permutation on Spongent-π-W permutation state,
-// such that `slen` = W = {160, 176}
+// Applies bit permutation on Spongent-π-W permutation
+// state | `slen` = W = {160, 176}
 //
 // See formula defined in section 2.{3, 4}.1 of Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
@@ -191,6 +188,40 @@ apply_permutation(uint8_t* const state) requires(check_state_bit_len(slen))
   }
 
   std::memcpy(state, tmp, sizeof(tmp));
+}
+
+// Single round of Spongent-π-W permutation | W = slen = {160, 176}
+template<const size_t slen>
+inline static void
+round(uint8_t* const state,
+      const size_t r_idx) requires(check_state_bit_len(slen))
+{
+  apply_rc<slen>(state, r_idx);
+  apply_sbox<slen>(state);
+  apply_permutation<slen>(state);
+}
+
+// Applies `rounds` -many round of Spongent-π-W permutation
+// when W = slen = {160, 176}
+//
+// Note, rounds = 80, when slen = 160
+// while rounds = 90, when slen = 176
+//
+// See section 2.{3, 4}.1 of Elephant specification
+// https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
+template<const size_t slen, const size_t rounds>
+inline static void
+permute(uint8_t* const state) requires(check_state_bit_len(slen))
+{
+  if constexpr (slen == 160) {
+    static_assert(rounds == 80);
+  } else if constexpr (slen == 176) {
+    static_assert(rounds == 90);
+  }
+
+  for (size_t i = 0; i < rounds; i++) {
+    round<slen>(state, i);
+  }
 }
 
 }
