@@ -90,8 +90,8 @@ next_mask(const uint8_t* const __restrict key,
 // See step 5 of algorithm 1 & 2, in Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 //
-// Template parameter `slen` expects value {160, 176}, which is the block length
-// of underlying primitive (permutation). When using this function for
+// Template parameter `slen` expects value {160, 176}, which is the block bit
+// length of underlying primitive (permutation). When using this function for
 //
 // - Dumbo, do slen = 160
 // - Jumbo, do slen = 176
@@ -124,7 +124,54 @@ get_ith_data_block(
   off += data_to_read;
 
   const size_t rm_to_read = blk_len - off;
-  const size_t rd_bytes = std::min(rm_to_read, 1);
+  const size_t rd_bytes = std::min(rm_to_read, 1ul);
+
+  std::memcpy(blk + off, &pad, rd_bytes);
+  off += rd_bytes;
+
+  std::memset(blk + off, 0, blk_len - off);
+}
+
+// When authenticating cipher text, this routine extracts out requested i-th
+// block from padded cipher text.
+//
+// Note, cipher text is appended with byte value 1, which might also incur zero
+// padding
+//
+// See step 6 of algorithm 1 & 2, in Elephant specification
+// https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
+//
+// Template parameter `slen` expects value {160, 176}, which is the block bit
+// length of underlying primitive (permutation). When using this function for
+//
+// - Dumbo, do slen = 160
+// - Jumbo, do slen = 176
+//
+// This implementation collects some inspiration from
+// https://github.com/TimBeyne/Elephant/blob/b1a6883/crypto_aead/elephant160v2/ref/encrypt.c#L70-L91
+template<const size_t slen>
+static void
+get_ith_cipher_block(
+  const uint8_t* const __restrict cipher, // N -bytes cipher text
+  const size_t ctlen,                     // len(cipher) = N | >= 0
+  const size_t i,               // index ( zero based ) of block to extract
+  uint8_t* const __restrict blk // extracted block to be placed here
+  ) requires(spongent::check_state_bit_len(slen))
+{
+  constexpr size_t blk_len = slen >> 3;
+  constexpr uint8_t pad = 0x01;
+
+  size_t off = 0;
+
+  const size_t coff = i * blk_len;
+  const size_t tot_to_read = blk_len - off;
+  const size_t cipher_to_read = std::min(tot_to_read, ctlen - coff);
+
+  std::memcpy(blk + off, cipher + coff, cipher_to_read);
+  off += cipher_to_read;
+
+  const size_t rm_to_read = blk_len - off;
+  const size_t rd_bytes = std::min(rm_to_read, 1ul);
 
   std::memcpy(blk + off, &pad, rd_bytes);
   off += rd_bytes;
