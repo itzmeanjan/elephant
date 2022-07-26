@@ -1,18 +1,18 @@
 #pragma once
 #include "aead.hpp"
 
-// Dumbo Authenticated Encryption with Associated Data
-namespace dumbo {
+// Jumbo Authenticated Encryption with Associated Data
+namespace jumbo {
 
-// No. of rounds Spongent-π[160] permutation is applied on state
-constexpr size_t ROUNDS = 80;
+// No. of rounds Spongent-π[176] permutation is applied on state
+constexpr size_t ROUNDS = 90;
 
-// Spongent-π[160] permutation state is 160 -bit wide
-constexpr size_t SLEN = 160;
+// Spongent-π[176] permutation state is 176 -bit wide
+constexpr size_t SLEN = 176;
 
 // Given 16 -bytes secret key, 12 -bytes public message nonce, N -bytes
 // associated data & M -bytes plain text, this routine computes M -bytes
-// encrypted text & 8 -bytes authentication tag, using Dumbo AEAD scheme
+// encrypted text & 8 -bytes authentication tag, using Jumbo AEAD scheme
 // | M, N >= 0
 //
 // Note, associated data is never encrypted, but only authenticated.
@@ -36,7 +36,7 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
 
 // Given 16 -bytes secret key, 12 -bytes public message nonce, 8 -bytes
 // authentication tag, N -bytes associated data & M -bytes encrypted text, this
-// routine computes M -bytes plain text & boolean verification flag, using Dumbo
+// routine computes M -bytes plain text & boolean verification flag, using Jumbo
 // AEAD scheme | M, N >= 0
 //
 // Note, M -bytes plain text is released only when authentication passes i.e.
