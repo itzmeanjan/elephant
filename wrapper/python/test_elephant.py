@@ -14,7 +14,7 @@ def test_dumbo_kat():
 
     See https://csrc.nist.gov/projects/lightweight-cryptography/finalists
     """
-    with open("LWC_AEAD_KAT_128_96.txt", "r") as fd:
+    with open("dumbo.txt", "r") as fd:
         while True:
             cnt = fd.readline()
             if not cnt:
