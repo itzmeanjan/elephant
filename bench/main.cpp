@@ -1,5 +1,4 @@
-#include "bench_dumbo.hpp"
-#include "bench_spongent.hpp"
+#include "bench_elephant.hpp"
 
 // register Spongent-π[W] for benchmarking
 BENCHMARK(bench_elephant::spongent_permutation<160, 1>);
@@ -22,6 +21,22 @@ BENCHMARK(bench_elephant::dumbo_encrypt)->Args({ 32, 2048 });
 BENCHMARK(bench_elephant::dumbo_decrypt)->Args({ 32, 2048 });
 BENCHMARK(bench_elephant::dumbo_encrypt)->Args({ 32, 4096 });
 BENCHMARK(bench_elephant::dumbo_decrypt)->Args({ 32, 4096 });
+
+// register Jumbo AEAD for benchmarking
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 64 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 64 });
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 128 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 128 });
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 256 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 256 });
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 512 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 512 });
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 1024 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 1024 });
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 2048 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 2048 });
+BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 4096 });
+BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 4096 });
 
 // benchmark runner main function
 BENCHMARK_MAIN();
