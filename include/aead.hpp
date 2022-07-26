@@ -45,10 +45,10 @@ lfsr(uint8_t* const x) requires(spongent::check_state_bit_len(slen))
 // fmask -> result of applying φ_2^b(hmask), actual mask used in this round
 template<const size_t slen, const size_t b>
 inline static void
-next_mask(const uint8_t* const __restrict key,
-          uint8_t* const __restrict hmask,
-          uint8_t* const __restrict fmask,
-          const size_t a) requires(spongent::check_state_bit_len(slen))
+next_mask(
+  const uint8_t* const __restrict key,
+  uint8_t* const __restrict hmask,
+  uint8_t* const __restrict fmask) requires(spongent::check_state_bit_len(slen))
 {
   static_assert((b == 0) || (b == 1) || (b == 2));
   constexpr size_t sbytes = slen >> 3;
