@@ -79,4 +79,25 @@ pi(const uint8_t* const __restrict istate, // input permutation state
   }
 }
 
+// Keccak-f[200] step mapping function, see section 3.2.4 of SHA3 specification
+// https://dx.doi.org/10.6028/NIST.FIPS.202
+inline static void
+chi(const uint8_t* const __restrict istate, // input permutation state
+    uint8_t* const __restrict ostate        // output permutation state
+)
+{
+  for (size_t i = 0; i < 5; i++) {
+    const size_t ix5 = i * 5;
+
+    for (size_t j = 0; j < 5; j++) {
+      const size_t j0 = (j + 1) % 5;
+      const size_t j1 = (j + 2) % 5;
+
+      const uint8_t rhs = ~istate[ix5 + j0] & istate[ix5 + j1];
+
+      ostate[ix5 + j] = istate[ix5 + j] ^ rhs;
+    }
+  }
+}
+
 }
