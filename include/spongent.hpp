@@ -213,12 +213,6 @@ template<const size_t slen, const size_t rounds>
 inline static void
 permute(uint8_t* const state) requires(check_state_bit_len(slen))
 {
-  if constexpr (slen == 160) {
-    static_assert(rounds == 80);
-  } else if constexpr (slen == 176) {
-    static_assert(rounds == 90);
-  }
-
   for (size_t i = 0; i < rounds; i++) {
     round<slen>(state, i);
   }
