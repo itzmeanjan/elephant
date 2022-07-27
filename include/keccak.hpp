@@ -25,7 +25,7 @@ constexpr size_t ROT[]{ 0 & 7,   1 & 7,   190 & 7, 28 & 7,  91 & 7,
 // using binary LFSR, defined by primitive polynomial x^8 + x^6 + x^5 + x^4 + 1
 //
 // See algorithm 5 in section 3.2.5 of http://dx.doi.org/10.6028/NIST.FIPS.202
-consteval bool
+consteval static bool
 rc(const size_t t)
 {
   // step 1 of algorithm 5
@@ -60,7 +60,7 @@ rc(const size_t t)
 
 // Computes 8 -bit round constant ( at compile-time ), which is XOR-ed into very
 // first lane of Keccak-f[200] permutation state
-consteval uint8_t
+consteval static uint8_t
 compute_rc(const size_t r_idx)
 {
   uint8_t tmp = 0;
@@ -167,6 +167,42 @@ inline static void
 iota(uint8_t* const state, const size_t r_idx)
 {
   state[0] ^= RC[r_idx];
+}
+
+// Keccak-f[200] round function, which applies all five
+// step mapping functions in order, updating state array
+//
+// See section 3.3 of https://dx.doi.org/10.6028/NIST.FIPS.202
+inline static void
+round(uint8_t* const state, const size_t r_idx)
+{
+  uint8_t tmp[25];
+
+  theta(state);
+  rho(state);
+  pi(state, tmp);
+  chi(tmp, state);
+  iota(state, r_idx);
+}
+
+// Compile-time check to ensure that # -of times Keccak-f[200] is requested to
+// be applied is lesser than maximum # -of times ( = 18 ) it can be.
+constexpr inline static bool
+check_rounds(const size_t rounds)
+{
+  return rounds <= ROUNDS;
+}
+
+// Keccak-f[200] permutation, applying `rounds` -many rounds of permutation
+// on state of dimension 5 x 5 x 8 -bits, using algorithm 7 defined in
+// section 3.3 of SHA3 specification https://dx.doi.org/10.6028/NIST.FIPS.202
+template<const size_t rounds>
+static inline void
+permute(uint8_t* const state) requires(check_rounds(rounds))
+{
+  for (size_t i = 0; i < rounds; i++) {
+    round(state, i);
+  }
 }
 
 }
