@@ -9,7 +9,19 @@ namespace keccak {
 // Number of rounds of keccak-f[200] permutation applied on state, for Delirium
 constexpr size_t ROUNDS = 18;
 
-// keccak-f[200] step mapping function, see section 3.2.1 of SHA3 specification
+// Leftwards circular rotation offset of 25 lanes ( each lane is 8 -bit wide )
+// of state array, as provided in table 2 below algorithm 2 in section 3.2.2 of
+// https://dx.doi.org/10.6028/NIST.FIPS.202
+//
+// Note, following offsets are obtained by performing % 8 ( bit width of lane )
+// on offsets provided in above mentioned link
+constexpr size_t ROT[]{ 0 & 7,   1 & 7,   190 & 7, 28 & 7,  91 & 7,
+                        36 & 7,  300 & 7, 6 & 7,   55 & 7,  276 & 7,
+                        3 & 7,   10 & 7,  171 & 7, 153 & 7, 231 & 7,
+                        105 & 7, 45 & 7,  15 & 7,  21 & 7,  136 & 7,
+                        210 & 7, 66 & 7,  253 & 7, 120 & 7, 78 & 7 };
+
+// Keccak-f[200] step mapping function, see section 3.2.1 of SHA3 specification
 // https://dx.doi.org/10.6028/NIST.FIPS.202
 inline static void
 theta(uint8_t* const state)
@@ -37,6 +49,16 @@ theta(uint8_t* const state)
     state[i + 10] ^= d[i];
     state[i + 15] ^= d[i];
     state[i + 20] ^= d[i];
+  }
+}
+
+// Keccak-f[200] step mapping function, see section 3.2.2 of SHA3 specification
+// https://dx.doi.org/10.6028/NIST.FIPS.202
+inline static void
+rho(uint8_t* const state)
+{
+  for (size_t i = 0; i < 25; i++) {
+    state[i] = std::rotl(state[i], ROT[i]);
   }
 }
 
