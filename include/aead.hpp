@@ -1,13 +1,14 @@
 #pragma once
-#include "spongent.hpp"
+#include "permutation.hpp"
 #include <algorithm>
 #include <bit>
 
 // Elephant Authenticated Encryption with Associated Data
 namespace elephant {
 
-// Updates Spongent-π-[{160, 176}] linear feedback shift register, following
-// algorithm provided in section 2.{3, 4}.2 of Elephant specification
+// Updates Spongent-π-[{160, 176}] & Keccak-f[200] linear feedback shift
+// register, following algorithm provided in section 2.{3, 4, 5}.2 of Elephant
+// specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 template<const size_t slen>
 inline static void
@@ -16,10 +17,13 @@ lfsr(uint8_t* const x) requires(spongent::check_state_bit_len(slen))
   constexpr size_t sbytes = slen >> 3;
 
   uint8_t tmp;
+
   if constexpr (slen == 160) {
     tmp = std::rotl(x[0], 3) ^ (x[3] << 7) ^ (x[13] >> 7);
   } else if constexpr (slen == 176) {
     tmp = std::rotl(x[0], 1) ^ (x[3] << 7) ^ (x[19] >> 7);
+  } else if constexpr (slen == 200) {
+    tmp = std::rotl(x[0], 1) ^ std::rotl(x[2], 1) ^ (x[13] << 1);
   }
 
   for (size_t i = 0; i < sbytes - 1; i++) {
@@ -85,16 +89,18 @@ next_mask(
 //
 // - associated data is prepended with 12 -bytes nonce
 // - associated data is appended with byte value 1, which might incur zero
-// padding
+// padding, if not properly divisible by block length ( i.e. slen/ 8 -bytes )
 //
 // See step 5 of algorithm 1 & 2, in Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 //
-// Template parameter `slen` expects value {160, 176}, which is the block bit
-// length of underlying primitive (permutation). When using this function for
+// Template parameter `slen` expects value {160, 176, 200}, which is the block
+// bit length of underlying primitive (permutation). When using this function
+// for
 //
 // - Dumbo, do slen = 160
 // - Jumbo, do slen = 176
+// - Delirium, do slen = 200
 //
 // This implementation collects some inspiration from
 // https://github.com/TimBeyne/Elephant/blob/b1a6883/crypto_aead/elephant160v2/ref/encrypt.c#L37-L68
@@ -135,17 +141,19 @@ get_ith_data_block(
 // When authenticating cipher text, this routine extracts out requested i-th
 // block from padded cipher text.
 //
-// Note, cipher text is appended with byte value 1, which might also incur zero
-// padding
+// Note, cipher text is appended with byte value 0x01, which might also incur
+// zero padding
 //
 // See step 6 of algorithm 1 & 2, in Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
 //
-// Template parameter `slen` expects value {160, 176}, which is the block bit
-// length of underlying primitive (permutation). When using this function for
+// Template parameter `slen` expects value {160, 176, 200}, which is the block
+// bit length of underlying primitive (permutation). When using this function
+// for
 //
 // - Dumbo, do slen = 160
 // - Jumbo, do slen = 176
+// - Delirium, do slen = 200
 //
 // This implementation collects some inspiration from
 // https://github.com/TimBeyne/Elephant/blob/b1a6883/crypto_aead/elephant160v2/ref/encrypt.c#L70-L91
@@ -179,17 +187,31 @@ get_ith_cipher_block(
   std::memset(blk + off, 0, blk_len - off);
 }
 
+// Ensure that any of {Dumbo, Jumbo, Delirium} AEAD is being used, in
+// compile-time
+constexpr inline static bool
+check_tag_bit_len(const size_t tlen)
+{
+  return (tlen == 64) || (tlen == 128);
+}
+
 // Given 16 -bytes secret key, 12 -bytes public message nonce, N -bytes
 // associated data & M -bytes plain text, this routine computes M -bytes
-// encrypted text & 8 -bytes authentication tag, using Dumbo/ Jumbo AEAD scheme
-// | M, N >= 0
+// encrypted text & (tlen >> 3) -bytes authentication tag, using Dumbo/ Jumbo/
+// Delirium AEAD scheme | M, N >= 0
 //
 // Note, associated data is never encrypted, but only authenticated.
 // Also avoid reusing same nonce under same key.
 //
+// Also note, when encrypting using
+//
+// Dumbo, use slen = 160, tlen = 64
+// Jumbo, use slen = 176, tlen = 64
+// Delirium, use slen = 200, tlen = 128
+//
 // See algorithm 1 of Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
-template<const size_t slen, const size_t rounds>
+template<const size_t slen, const size_t rounds, const size_t tlen>
 static void
 encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
         const uint8_t* const __restrict nonce, // 96 -bit nonce
@@ -198,10 +220,12 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
         const uint8_t* const __restrict txt,   // M -bytes plain text
         uint8_t* const __restrict enc,         // M -bytes encrypted text
         const size_t ctlen,                    // len(txt) = len(enc) = M | >= 0
-        uint8_t* const __restrict tag          // 64 -bit authentication tag
-)
+        uint8_t* const __restrict tag          // `tlen` -bit authentication tag
+        ) requires(spongent::check_state_bit_len(slen) &&
+                   check_tag_bit_len(tlen))
 {
   constexpr size_t sbytes = slen >> 3;
+  constexpr size_t tbytes = tlen >> 3;
 
   uint8_t ekey[sbytes]{};
   uint8_t hmask[sbytes]{};
@@ -212,7 +236,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   uint8_t enonce[sbytes]{};
 
@@ -230,7 +258,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
       enonce[i] ^= fmask[i];
     }
 
-    spongent::permute<slen, rounds>(enonce);
+    if constexpr ((slen == 160) || (slen == 176)) {
+      spongent::permute<slen, rounds>(enonce);
+    } else if constexpr (slen == 200) {
+      keccak::permute<rounds>(enonce);
+    }
 
     for (size_t i = 0; i < sbytes; i++) {
       enonce[i] ^= fmask[i];
@@ -262,7 +294,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   for (size_t i = 1; i < tot_blk_cnt0; i++) {
     get_ith_data_block<slen>(data, dlen, nonce, i, msg_blk);
@@ -274,7 +310,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
       msg_blk[j] ^= fmask[j];
     }
 
-    spongent::permute<slen, rounds>(msg_blk);
+    if constexpr ((slen == 160) || (slen == 176)) {
+      spongent::permute<slen, rounds>(msg_blk);
+    } else if constexpr (slen == 200) {
+      keccak::permute<rounds>(msg_blk);
+    }
 
     for (size_t j = 0; j < sbytes; j++) {
       msg_blk[j] ^= fmask[j];
@@ -297,7 +337,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   for (size_t i = 0; i < tot_blk_cnt1; i++) {
     get_ith_cipher_block<slen>(enc, ctlen, i, msg_blk);
@@ -309,7 +353,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
       msg_blk[j] ^= fmask[j];
     }
 
-    spongent::permute<slen, rounds>(msg_blk);
+    if constexpr ((slen == 160) || (slen == 176)) {
+      spongent::permute<slen, rounds>(msg_blk);
+    } else if constexpr (slen == 200) {
+      keccak::permute<rounds>(msg_blk);
+    }
 
     for (size_t j = 0; j < sbytes; j++) {
       msg_blk[j] ^= fmask[j];
@@ -327,13 +375,21 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   for (size_t i = 0; i < sbytes; i++) {
     tag_[i] ^= ekey[i];
   }
 
-  spongent::permute<slen, rounds>(tag_);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(tag_);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(tag_);
+  }
 
   for (size_t i = 0; i < sbytes; i++) {
     tag_[i] ^= ekey[i];
@@ -341,33 +397,41 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
 
   // end step 12 of algorithm 1, 2
 
-  std::memcpy(tag, tag_, 8);
+  std::memcpy(tag, tag_, tbytes);
 }
 
-// Given 16 -bytes secret key, 12 -bytes public message nonce, 8 -bytes
-// authentication tag, N -bytes associated data & M -bytes encrypted text, this
-// routine computes M -bytes plain text & boolean verification flag, using
-// Dumbo/ Jumbo AEAD scheme | M, N >= 0
+// Given 16 -bytes secret key, 12 -bytes public message nonce, (tlen >> 3)
+// -bytes authentication tag, N -bytes associated data & M -bytes encrypted
+// text, this routine computes M -bytes plain text & boolean verification flag,
+// using Dumbo/ Jumbo/ Delirium AEAD scheme | M, N >= 0
 //
 // Note, M -bytes plain text is released only when authentication passes i.e.
 // boolean verification flag holds truth value. Otherwise one should find zero
 // values in decrypted plain text.
 //
+// Also note, when decrypting using
+//
+// Dumbo, use slen = 160, tlen = 64
+// Jumbo, use slen = 176, tlen = 64
+// Delirium, use slen = 200, tlen = 128
+//
 // See algorithm 2 of Elephant specification
 // https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf
-template<const size_t slen, const size_t rounds>
+template<const size_t slen, const size_t rounds, const size_t tlen>
 static bool
 decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
         const uint8_t* const __restrict nonce, // 96 -bit nonce
-        const uint8_t* const __restrict tag,   // 64 -bit authentication tag
+        const uint8_t* const __restrict tag,   // `tlen` -bit authentication tag
         const uint8_t* const __restrict data,  // N -bytes associated data
         const size_t dlen,                     // len(data) = N | >= 0
         const uint8_t* const __restrict enc,   // M -bytes encrypted text
         uint8_t* const __restrict txt,         // M -bytes plain text
         const size_t ctlen                     // len(enc) = len(txt) = M | >= 0
-)
+        ) requires(spongent::check_state_bit_len(slen) &&
+                   check_tag_bit_len(tlen))
 {
   constexpr size_t sbytes = slen >> 3;
+  constexpr size_t tbytes = tlen >> 3;
 
   uint8_t ekey[sbytes]{};
   uint8_t hmask[sbytes]{};
@@ -378,7 +442,11 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   uint8_t enonce[sbytes]{};
 
@@ -396,7 +464,11 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
       enonce[i] ^= fmask[i];
     }
 
-    spongent::permute<slen, rounds>(enonce);
+    if constexpr ((slen == 160) || (slen == 176)) {
+      spongent::permute<slen, rounds>(enonce);
+    } else if constexpr (slen == 200) {
+      keccak::permute<rounds>(enonce);
+    }
 
     for (size_t i = 0; i < sbytes; i++) {
       enonce[i] ^= fmask[i];
@@ -428,7 +500,11 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   for (size_t i = 1; i < tot_blk_cnt0; i++) {
     elephant::get_ith_data_block<slen>(data, dlen, nonce, i, msg_blk);
@@ -440,7 +516,11 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
       msg_blk[j] ^= fmask[j];
     }
 
-    spongent::permute<slen, rounds>(msg_blk);
+    if constexpr ((slen == 160) || (slen == 176)) {
+      spongent::permute<slen, rounds>(msg_blk);
+    } else if constexpr (slen == 200) {
+      keccak::permute<rounds>(msg_blk);
+    }
 
     for (size_t j = 0; j < sbytes; j++) {
       msg_blk[j] ^= fmask[j];
@@ -463,7 +543,11 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   for (size_t i = 0; i < tot_blk_cnt1; i++) {
     elephant::get_ith_cipher_block<slen>(enc, ctlen, i, msg_blk);
@@ -475,7 +559,11 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
       msg_blk[j] ^= fmask[j];
     }
 
-    spongent::permute<slen, rounds>(msg_blk);
+    if constexpr ((slen == 160) || (slen == 176)) {
+      spongent::permute<slen, rounds>(msg_blk);
+    } else if constexpr (slen == 200) {
+      keccak::permute<rounds>(msg_blk);
+    }
 
     for (size_t j = 0; j < sbytes; j++) {
       msg_blk[j] ^= fmask[j];
@@ -493,13 +581,21 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   std::memset(ekey, 0, sizeof(ekey));
   std::memcpy(ekey, key, 16);
 
-  spongent::permute<slen, rounds>(ekey);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(ekey);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(ekey);
+  }
 
   for (size_t i = 0; i < sbytes; i++) {
     tag_[i] ^= ekey[i];
   }
 
-  spongent::permute<slen, rounds>(tag_);
+  if constexpr ((slen == 160) || (slen == 176)) {
+    spongent::permute<slen, rounds>(tag_);
+  } else if constexpr (slen == 200) {
+    keccak::permute<rounds>(tag_);
+  }
 
   for (size_t i = 0; i < sbytes; i++) {
     tag_[i] ^= ekey[i];
@@ -510,7 +606,7 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   // compare authentication tag and decide whether to release plain text
   bool flg = false;
 
-  for (size_t i = 0; i < 8; i++) {
+  for (size_t i = 0; i < tbytes; i++) {
     flg |= static_cast<bool>(tag[i] ^ tag_[i]);
   }
 
