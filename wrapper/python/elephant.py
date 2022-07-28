@@ -191,7 +191,7 @@ def delirium_encrypt(
     data_ = np.frombuffer(data, dtype=u8)
     text_ = np.frombuffer(text, dtype=u8)
     enc = np.empty(ct_len, dtype=u8)
-    tag = np.empty(8, dtype=u8)
+    tag = np.empty(16, dtype=u8)
 
     args = [uint8_tp, uint8_tp, uint8_tp, len_t, uint8_tp, uint8_tp, len_t, uint8_tp]
     SO_LIB.delirium_encrypt.argtypes = args
