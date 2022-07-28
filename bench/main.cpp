@@ -42,5 +42,21 @@ BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 2048 });
 BENCHMARK(bench_elephant::jumbo_encrypt)->Args({ 32, 4096 });
 BENCHMARK(bench_elephant::jumbo_decrypt)->Args({ 32, 4096 });
 
+// register Delirium AEAD for benchmarking
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 64 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 64 });
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 128 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 128 });
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 256 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 256 });
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 512 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 512 });
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 1024 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 1024 });
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 2048 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 2048 });
+BENCHMARK(bench_elephant::delirium_encrypt)->Args({ 32, 4096 });
+BENCHMARK(bench_elephant::delirium_decrypt)->Args({ 32, 4096 });
+
 // benchmark runner main function
 BENCHMARK_MAIN();
