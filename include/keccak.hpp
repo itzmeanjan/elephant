@@ -77,7 +77,7 @@ compute_rc(const size_t r_idx)
 // state, see section 3.2.5 of https://dx.doi.org/10.s6028/NIST.FIPS.202
 constexpr uint8_t RC[ROUNDS]{ compute_rc(0),  compute_rc(1),  compute_rc(2),
                               compute_rc(3),  compute_rc(4),  compute_rc(5),
-                              compute_rc(6),  compute_rc(7),  compute_rc(7),
+                              compute_rc(6),  compute_rc(7),  compute_rc(8),
                               compute_rc(9),  compute_rc(10), compute_rc(11),
                               compute_rc(12), compute_rc(13), compute_rc(14),
                               compute_rc(15), compute_rc(16), compute_rc(17) };
