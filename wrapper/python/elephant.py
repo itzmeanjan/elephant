@@ -171,5 +171,77 @@ def jumbo_decrypt(
     return f, dec_
 
 
+def delirium_encrypt(
+    key: bytes, nonce: bytes, data: bytes, text: bytes
+) -> Tuple[bytes, bytes]:
+    """
+    Encrypts M ( >=0 ) -bytes plain text, with Delirium AEAD,
+    while using 16 -bytes secret key, 12 -bytes public message nonce &
+    N ( >=0 ) -bytes associated data, while producing M -bytes cipher text
+    & 16 -bytes authentication tag ( in order )
+    """
+    assert len(key) == 16, "Delirium takes 16 -bytes secret key !"
+    assert len(nonce) == 12, "Delirium takes 12 -bytes nonce !"
+
+    ad_len = len(data)
+    ct_len = len(text)
+
+    key_ = np.frombuffer(key, dtype=u8)
+    nonce_ = np.frombuffer(nonce, dtype=u8)
+    data_ = np.frombuffer(data, dtype=u8)
+    text_ = np.frombuffer(text, dtype=u8)
+    enc = np.empty(ct_len, dtype=u8)
+    tag = np.empty(8, dtype=u8)
+
+    args = [uint8_tp, uint8_tp, uint8_tp, len_t, uint8_tp, uint8_tp, len_t, uint8_tp]
+    SO_LIB.delirium_encrypt.argtypes = args
+
+    SO_LIB.delirium_encrypt(key_, nonce_, data_, ad_len, text_, enc, ct_len, tag)
+
+    enc_ = enc.tobytes()
+    tag_ = tag.tobytes()
+
+    return enc_, tag_
+
+
+def delirium_decrypt(
+    key: bytes, nonce: bytes, tag: bytes, data: bytes, enc: bytes
+) -> Tuple[bool, bytes]:
+    """
+    Decrypts M ( >=0 ) -bytes cipher text, with Delirium AEAD,
+    while using 16 -bytes secret key, 12 -bytes public message nonce,
+    16 -bytes authentication tag & N ( >=0 ) -bytes associated data, while
+    producing boolean flag denoting verification status ( which must hold truth
+    value, check before consuming decrypted output bytes ) & M -bytes
+    plain text ( in order )
+
+    If authentication check fails ( i.e. boolean verification flag is false ),
+    decrypted text bytes are zeroed.
+    """
+    assert len(key) == 16, "Delirium takes 16 -bytes secret key !"
+    assert len(nonce) == 12, "Delirium takes 12 -bytes nonce !"
+    assert len(tag) == 16, "Delirium takes 16 -bytes authentication tag !"
+
+    ad_len = len(data)
+    ct_len = len(enc)
+
+    key_ = np.frombuffer(key, dtype=u8)
+    nonce_ = np.frombuffer(nonce, dtype=u8)
+    tag_ = np.frombuffer(tag, dtype=u8)
+    data_ = np.frombuffer(data, dtype=u8)
+    enc_ = np.frombuffer(enc, dtype=u8)
+    dec = np.empty(ct_len, dtype=u8)
+
+    args = [uint8_tp, uint8_tp, uint8_tp, uint8_tp, len_t, uint8_tp, uint8_tp, len_t]
+    SO_LIB.delirium_decrypt.argtypes = args
+    SO_LIB.delirium_decrypt.restype = bool_t
+
+    f = SO_LIB.delirium_decrypt(key_, nonce_, tag_, data_, ad_len, enc_, dec, ct_len)
+
+    dec_ = dec.tobytes()
+
+    return f, dec_
+
+
 if __name__ == "__main__":
     print("Use `elephant` as library module")
