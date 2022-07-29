@@ -10,6 +10,9 @@ constexpr size_t ROUNDS = 80;
 // Spongent-π[160] permutation state is 160 -bit wide
 constexpr size_t SLEN = 160;
 
+// Dumbo AEAD's authentication tag is 64 -bit wide
+constexpr size_t TLEN = 64;
+
 // Given 16 -bytes secret key, 12 -bytes public message nonce, N -bytes
 // associated data & M -bytes plain text, this routine computes M -bytes
 // encrypted text & 8 -bytes authentication tag, using Dumbo AEAD scheme
@@ -31,7 +34,11 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
         uint8_t* const __restrict tag          // 64 -bit authentication tag
 )
 {
-  elephant::encrypt<SLEN, ROUNDS>(key, nonce, data, dlen, txt, enc, ctlen, tag);
+  constexpr size_t a = SLEN;
+  constexpr size_t b = ROUNDS;
+  constexpr size_t c = TLEN;
+
+  elephant::encrypt<a, b, c>(key, nonce, data, dlen, txt, enc, ctlen, tag);
 }
 
 // Given 16 -bytes secret key, 12 -bytes public message nonce, 8 -bytes
@@ -58,9 +65,10 @@ decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
 {
   constexpr size_t a = SLEN;
   constexpr size_t b = ROUNDS;
+  constexpr size_t c = TLEN;
 
   bool f = false;
-  f = elephant::decrypt<a, b>(key, nonce, tag, data, dlen, enc, txt, ctlen);
+  f = elephant::decrypt<a, b, c>(key, nonce, tag, data, dlen, enc, txt, ctlen);
   return f;
 }
 

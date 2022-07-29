@@ -7,7 +7,7 @@ Elephant is a fast, parallelizable, lightweight authenticated encryption scheme 
 
 > Find NIST LWC finalists [here](https://csrc.nist.gov/Projects/lightweight-cryptography/finalists)
 
-Elephant is the 9th light weight AEAD scheme that I've decided to implement as a zero-dependency, header-only C++ library, which is easy to use
+Elephant is the 9th light weight AEAD scheme that I've decided to implement as a zero-dependency, header-only C++ library, which is fairly easy to use
 
 - Import header files & start using namespaced routines.
 - During compilation, let your compiler know where it can find these header files.
@@ -16,9 +16,11 @@ Elephant is the 9th light weight AEAD scheme that I've decided to implement as a
 
 Elephant cipher suite offers three authenticated encryption/ verified decryption algorithms
 
-- Dumbo ( **primary candidate** )
-- Jumbo
-- Delirium ( **not yet implemented** )
+Scheme | Nature | Based on Permutation | Secret Key Size | Nonce Size | Authentication Tag Size
+--- | --: | :-: | --: | --: | --:
+Dumbo ( **primary candidate** ) | H/W friendly | Spongent-π[160] | 16 -bytes | 12 -bytes | 8 -bytes
+Jumbo | H/W friendly | Spongent-π[176] | 16 -bytes | 12 -bytes | 8 -bytes
+Delirium | S/W friendly | Keccak-f[200] | 16 -bytes | 12 -bytes | 16 -bytes
 
 **Dumbo** uses 80 -rounds of `Spongent-π[160]` permutation as its underlying construction. Dumbo encryption algorithm takes 16 -bytes secret key, 12 -bytes public message nonce, N -bytes associated data & M -bytes plain text, while computing M -bytes cipher text & 8 -bytes authentication tag. On the other hand Dumbo verified decryption algorithm takes 16 -bytes secret key, 12 -bytes nonce, 8 -bytes authentication tag, N -bytes associated data & M -bytes cipher text, producing M -bytes decrypted text & boolean verification flag.
 
@@ -101,7 +103,9 @@ python3 -m pip install --user -r wrapper/python/requirements.txt
 
 For ensuring functional correctness and compatibility with Elephantv2 specification ( as submitted to NIST LWC final round call ), I make use of Known Answer Tests ( KAT ) in NIST submission package.
 
-Given 16 -bytes secret key, 12 -bytes public message nonce, plain text and associated data, I use Dumbo, Jumbo `encrypt` routine for computing cipher text and 8 -bytes authentication tag, which is byte-by-byte compared against KATs. Finally an attempt to decrypt back to plain text, using Dumbo, Jumbo verified decryption algorithm, is also made, while ensuring presence of truth value in boolean verification flag.
+Given 16 -bytes secret key, 12 -bytes public message nonce, plain text and associated data, I use Dumbo, Jumbo `encrypt` routine for computing cipher text and 8 -bytes authentication tag, which is byte-by-byte compared against KATs. Finally an attempt to decrypt back to plain text, using Dumbo, Jumbo verified decryption algorithm, is also made, while ensuring presence of truth value in boolean verification flag. 
+
+Similarly Delirium AEAD implementation is tested against KATs, only difference is that it uses 16 -bytes authentication tag.
 
 > Note, if authentication verification fails ( during decryption phase ), decrypted plain text is not released ( i.e. zeroed ).
 
@@ -113,7 +117,7 @@ make
 
 ## Benchmarking
 
-Benchmarking following listed routines, can easily be done by issuing
+Benchmarking following listed routines, can be done by issuing
 
 ```bash
 make benchmark
@@ -122,19 +126,23 @@ make benchmark
 > For disabling CPU scaling, when benchmarking, see [this](https://github.com/google/benchmark/blob/60b16f1/docs/user_guide.md#disabling-cpu-frequency-scaling)
 
 - Spongent-π[160], Spongent-π[176] permutation
+- Keccak-f[200] permutation
 - Dumbo encrypt/ decrypt
 - Jumbo encrypt/ decrypt
+- Delirium encrypt/ decrypt
 
-> Note, benchmarking of encrypt/ decrypt routines are done with constant sized ( 32 -bytes ) associated data & varied length ( power of 2 values from 64 to 4096 -bytes ) plain/ cipher text
+> Note, benchmarking of encrypt/ decrypt routines are done with constant sized ( 32 -bytes ) associated data & varied length ( power of 2 values from 64 to 4096 -bytes ) plain/ cipher text. Both associated data & plain texts are randomly generated.
 
 > Also note, neither Dumbo nor Jumbo is software platform friendly, but Keccak-f[200] based Delirium is; see section 1 of Elephant [specification](https://csrc.nist.gov/CSRC/media/Projects/lightweight-cryptography/documents/finalist-round/updated-spec-doc/elephant-spec-final.pdf)
+
+> You'll be able to notice that Delirium AEAD performs much better compared to Dumbo & Jumbo, in following benchmark results.
 
 > Elephant is an encrypt-then-mac style construction, which makes it possible to parallelly {en, de}crypt different plain/ cipher text blocks, though parallelization is not yet implemented here.
 
 ### On Intel(R) Core(TM) i5-8279U CPU @ 2.40GHz
 
 ```bash
-2022-07-27T10:20:17+04:00
+2022-07-29T10:50:25+04:00
 Running ./bench/a.out
 Run on (8 X 2400 MHz CPU s)
 CPU Caches:
@@ -142,96 +150,128 @@ CPU Caches:
   L1 Instruction 32 KiB
   L2 Unified 256 KiB (x4)
   L3 Unified 6144 KiB
-Load Average: 1.59, 1.55, 1.50
+Load Average: 1.55, 2.30, 2.46
 --------------------------------------------------------------------------------------------------------
 Benchmark                                              Time             CPU   Iterations UserCounters...
 --------------------------------------------------------------------------------------------------------
-bench_elephant::spongent_permutation<160, 1>         313 ns          313 ns      2249907 bytes_per_second=61.0048M/s
-bench_elephant::spongent_permutation<160, 80>      25146 ns        25117 ns        27457 bytes_per_second=777.608k/s
-bench_elephant::spongent_permutation<176, 1>         337 ns          337 ns      2034523 bytes_per_second=62.2527M/s
-bench_elephant::spongent_permutation<176, 90>      30252 ns        30235 ns        22942 bytes_per_second=710.587k/s
-bench_elephant::dumbo_encrypt/32/64               375530 ns       375294 ns         1873 bytes_per_second=249.804k/s
-bench_elephant::dumbo_decrypt/32/64               372643 ns       372473 ns         1868 bytes_per_second=251.696k/s
-bench_elephant::dumbo_encrypt/32/128              521702 ns       521363 ns         1289 bytes_per_second=299.695k/s
-bench_elephant::dumbo_decrypt/32/128              521043 ns       520748 ns         1309 bytes_per_second=300.049k/s
-bench_elephant::dumbo_encrypt/32/256              821919 ns       821180 ns          835 bytes_per_second=342.495k/s
-bench_elephant::dumbo_decrypt/32/256              822393 ns       821656 ns          838 bytes_per_second=342.296k/s
-bench_elephant::dumbo_encrypt/32/512             1462046 ns      1461041 ns          458 bytes_per_second=363.61k/s
-bench_elephant::dumbo_decrypt/32/512             1549466 ns      1530883 ns          472 bytes_per_second=347.022k/s
-bench_elephant::dumbo_encrypt/32/1024            2751141 ns      2750056 ns          252 bytes_per_second=374.992k/s
-bench_elephant::dumbo_decrypt/32/1024            2761128 ns      2759933 ns          252 bytes_per_second=373.65k/s
-bench_elephant::dumbo_encrypt/32/2048            5315088 ns      5311764 ns          127 bytes_per_second=382.406k/s
-bench_elephant::dumbo_decrypt/32/2048            5324620 ns      5314154 ns          130 bytes_per_second=382.234k/s
-bench_elephant::dumbo_encrypt/32/4096           10522337 ns     10492379 ns           66 bytes_per_second=384.207k/s
-bench_elephant::dumbo_decrypt/32/4096           10526103 ns     10501303 ns           66 bytes_per_second=383.881k/s
-bench_elephant::jumbo_encrypt/32/64               410664 ns       407483 ns         1716 bytes_per_second=230.071k/s
-bench_elephant::jumbo_decrypt/32/64               402392 ns       400753 ns         1748 bytes_per_second=233.935k/s
-bench_elephant::jumbo_encrypt/32/128              596600 ns       593831 ns         1185 bytes_per_second=263.122k/s
-bench_elephant::jumbo_decrypt/32/128              611675 ns       605712 ns         1121 bytes_per_second=257.961k/s
-bench_elephant::jumbo_encrypt/32/256              938721 ns       937865 ns          727 bytes_per_second=299.883k/s
-bench_elephant::jumbo_decrypt/32/256              939970 ns       939577 ns          735 bytes_per_second=299.337k/s
-bench_elephant::jumbo_encrypt/32/512             1759896 ns      1738674 ns          414 bytes_per_second=305.549k/s
-bench_elephant::jumbo_decrypt/32/512             1727456 ns      1712650 ns          397 bytes_per_second=310.192k/s
-bench_elephant::jumbo_encrypt/32/1024            3079661 ns      3078237 ns          228 bytes_per_second=335.013k/s
-bench_elephant::jumbo_decrypt/32/1024            3057424 ns      3056115 ns          227 bytes_per_second=337.438k/s
-bench_elephant::jumbo_encrypt/32/2048            5897604 ns      5894730 ns          115 bytes_per_second=344.587k/s
-bench_elephant::jumbo_decrypt/32/2048            6138066 ns      6093544 ns          114 bytes_per_second=333.345k/s
-bench_elephant::jumbo_encrypt/32/4096           11982112 ns     11884950 ns           60 bytes_per_second=339.189k/s
-bench_elephant::jumbo_decrypt/32/4096           11553181 ns     11544950 ns           60 bytes_per_second=349.179k/s
+bench_elephant::spongent_permutation<160, 1>         321 ns          320 ns      2245079 bytes_per_second=59.6076M/s
+bench_elephant::spongent_permutation<160, 80>      25128 ns        25111 ns        26192 bytes_per_second=777.795k/s
+bench_elephant::spongent_permutation<176, 1>         360 ns          360 ns      1949839 bytes_per_second=58.2627M/s
+bench_elephant::spongent_permutation<176, 90>      32259 ns        32233 ns        21536 bytes_per_second=666.524k/s
+bench_elephant::keccak_permutation<1>               33.0 ns         33.0 ns     21486959 bytes_per_second=723.122M/s
+bench_elephant::keccak_permutation<18>               587 ns          587 ns      1182532 bytes_per_second=40.6443M/s
+bench_elephant::dumbo_encrypt/32/64               374786 ns       374613 ns         1860 bytes_per_second=250.258k/s
+bench_elephant::dumbo_decrypt/32/64               374672 ns       374325 ns         1855 bytes_per_second=250.451k/s
+bench_elephant::dumbo_encrypt/32/128              525021 ns       524773 ns         1317 bytes_per_second=297.748k/s
+bench_elephant::dumbo_decrypt/32/128              524771 ns       524514 ns         1319 bytes_per_second=297.895k/s
+bench_elephant::dumbo_encrypt/32/256              827981 ns       827412 ns          839 bytes_per_second=339.915k/s
+bench_elephant::dumbo_decrypt/32/256              822066 ns       821595 ns          838 bytes_per_second=342.322k/s
+bench_elephant::dumbo_encrypt/32/512             1498709 ns      1484817 ns          469 bytes_per_second=357.788k/s
+bench_elephant::dumbo_decrypt/32/512             1475760 ns      1474851 ns          476 bytes_per_second=360.206k/s
+bench_elephant::dumbo_encrypt/32/1024            2778663 ns      2776486 ns          253 bytes_per_second=371.423k/s
+bench_elephant::dumbo_decrypt/32/1024            2798333 ns      2795474 ns          253 bytes_per_second=368.9k/s
+bench_elephant::dumbo_encrypt/32/2048            5319518 ns      5317122 ns          131 bytes_per_second=382.021k/s
+bench_elephant::dumbo_decrypt/32/2048            5344753 ns      5341140 ns          129 bytes_per_second=380.303k/s
+bench_elephant::dumbo_encrypt/32/4096           10429979 ns     10423667 ns           66 bytes_per_second=386.74k/s
+bench_elephant::dumbo_decrypt/32/4096           10396952 ns     10393299 ns           67 bytes_per_second=387.87k/s
+bench_elephant::jumbo_encrypt/32/64               418585 ns       418348 ns         1660 bytes_per_second=224.096k/s
+bench_elephant::jumbo_decrypt/32/64               417875 ns       417763 ns         1672 bytes_per_second=224.41k/s
+bench_elephant::jumbo_encrypt/32/128              615919 ns       615390 ns         1124 bytes_per_second=253.904k/s
+bench_elephant::jumbo_decrypt/32/128              612780 ns       612581 ns         1044 bytes_per_second=255.068k/s
+bench_elephant::jumbo_encrypt/32/256             1002065 ns      1001263 ns          691 bytes_per_second=280.895k/s
+bench_elephant::jumbo_decrypt/32/256             1001474 ns      1001072 ns          696 bytes_per_second=280.949k/s
+bench_elephant::jumbo_encrypt/32/512             1783778 ns      1781651 ns          395 bytes_per_second=298.179k/s
+bench_elephant::jumbo_decrypt/32/512             1773050 ns      1772175 ns          394 bytes_per_second=299.773k/s
+bench_elephant::jumbo_encrypt/32/1024            3248714 ns      3247397 ns          214 bytes_per_second=317.562k/s
+bench_elephant::jumbo_decrypt/32/1024            3269078 ns      3267090 ns          200 bytes_per_second=315.648k/s
+bench_elephant::jumbo_encrypt/32/2048            6564727 ns      6530101 ns          109 bytes_per_second=311.06k/s
+bench_elephant::jumbo_decrypt/32/2048            6869725 ns      6788796 ns           93 bytes_per_second=299.206k/s
+bench_elephant::jumbo_encrypt/32/4096           12411939 ns     12372536 ns           56 bytes_per_second=325.822k/s
+bench_elephant::jumbo_decrypt/32/4096           12581601 ns     12511566 ns           53 bytes_per_second=322.202k/s
+bench_elephant::delirium_encrypt/32/64              7372 ns         7366 ns        92195 bytes_per_second=12.4295M/s
+bench_elephant::delirium_decrypt/32/64              7999 ns         7850 ns        86856 bytes_per_second=11.6628M/s
+bench_elephant::delirium_encrypt/32/128            12077 ns        11862 ns        59221 bytes_per_second=12.8633M/s
+bench_elephant::delirium_decrypt/32/128            11187 ns        11167 ns        58189 bytes_per_second=13.6643M/s
+bench_elephant::delirium_encrypt/32/256            17422 ns        17406 ns        40019 bytes_per_second=15.7797M/s
+bench_elephant::delirium_decrypt/32/256            17511 ns        17491 ns        38418 bytes_per_second=15.703M/s
+bench_elephant::delirium_encrypt/32/512            29989 ns        29967 ns        23113 bytes_per_second=17.3123M/s
+bench_elephant::delirium_decrypt/32/512            30111 ns        30084 ns        23126 bytes_per_second=17.245M/s
+bench_elephant::delirium_encrypt/32/1024           55462 ns        55321 ns        12292 bytes_per_second=18.2043M/s
+bench_elephant::delirium_decrypt/32/1024           55125 ns        55073 ns        12068 bytes_per_second=18.2864M/s
+bench_elephant::delirium_encrypt/32/2048          106736 ns       106697 ns         6470 bytes_per_second=18.5914M/s
+bench_elephant::delirium_decrypt/32/2048          108815 ns       108366 ns         6091 bytes_per_second=18.305M/s
+bench_elephant::delirium_encrypt/32/4096          216919 ns       215549 ns         3119 bytes_per_second=18.2639M/s
+bench_elephant::delirium_decrypt/32/4096          218069 ns       216541 ns         3213 bytes_per_second=18.1802M/s
 ```
 
 ### On AWS Graviton2
 
 ```bash
-2022-07-27T06:22:28+00:00
+2022-07-29T06:52:15+00:00
 Running ./bench/a.out
 Run on (16 X 166.66 MHz CPU s)
 CPU Caches:
   L1 Data 32 KiB (x16)
   L1 Instruction 48 KiB (x16)
   L2 Unified 2048 KiB (x4)
-Load Average: 0.08, 0.02, 0.01
+Load Average: 0.15, 0.03, 0.01
 --------------------------------------------------------------------------------------------------------
 Benchmark                                              Time             CPU   Iterations UserCounters...
 --------------------------------------------------------------------------------------------------------
-bench_elephant::spongent_permutation<160, 1>         675 ns          675 ns      1035935 bytes_per_second=28.2452M/s
-bench_elephant::spongent_permutation<160, 80>      54063 ns        54063 ns        12947 bytes_per_second=361.268k/s
-bench_elephant::spongent_permutation<176, 1>         639 ns          639 ns      1095732 bytes_per_second=32.8422M/s
-bench_elephant::spongent_permutation<176, 90>      56917 ns        56916 ns        12298 bytes_per_second=377.478k/s
-bench_elephant::dumbo_encrypt/32/64               810703 ns       810665 ns          863 bytes_per_second=115.646k/s
-bench_elephant::dumbo_decrypt/32/64               810515 ns       810510 ns          864 bytes_per_second=115.668k/s
-bench_elephant::dumbo_encrypt/32/128             1135010 ns      1134963 ns          617 bytes_per_second=137.67k/s
-bench_elephant::dumbo_decrypt/32/128             1134782 ns      1134761 ns          617 bytes_per_second=137.694k/s
-bench_elephant::dumbo_encrypt/32/256             1783472 ns      1783415 ns          393 bytes_per_second=157.703k/s
-bench_elephant::dumbo_decrypt/32/256             1783347 ns      1783287 ns          393 bytes_per_second=157.714k/s
-bench_elephant::dumbo_encrypt/32/512             3188544 ns      3188491 ns          220 bytes_per_second=166.615k/s
-bench_elephant::dumbo_decrypt/32/512             3188349 ns      3188293 ns          220 bytes_per_second=166.625k/s
-bench_elephant::dumbo_encrypt/32/1024            5998642 ns      5998606 ns          117 bytes_per_second=171.915k/s
-bench_elephant::dumbo_decrypt/32/1024            5998765 ns      5998597 ns          117 bytes_per_second=171.915k/s
-bench_elephant::dumbo_encrypt/32/2048           11510538 ns     11510461 ns           61 bytes_per_second=176.47k/s
-bench_elephant::dumbo_decrypt/32/2048           11510892 ns     11510487 ns           61 bytes_per_second=176.47k/s
-bench_elephant::dumbo_encrypt/32/4096           22534361 ns     22534215 ns           31 bytes_per_second=178.895k/s
-bench_elephant::dumbo_decrypt/32/4096           22534963 ns     22534433 ns           31 bytes_per_second=178.893k/s
-bench_elephant::jumbo_encrypt/32/64               746432 ns       746412 ns          938 bytes_per_second=125.601k/s
-bench_elephant::jumbo_decrypt/32/64               747156 ns       747152 ns          937 bytes_per_second=125.476k/s
-bench_elephant::jumbo_encrypt/32/128             1090972 ns      1090952 ns          642 bytes_per_second=143.224k/s
-bench_elephant::jumbo_decrypt/32/128             1091808 ns      1091802 ns          641 bytes_per_second=143.112k/s
-bench_elephant::jumbo_encrypt/32/256             1780237 ns      1780155 ns          393 bytes_per_second=157.992k/s
-bench_elephant::jumbo_decrypt/32/256             1780978 ns      1780967 ns          393 bytes_per_second=157.92k/s
-bench_elephant::jumbo_encrypt/32/512             3158415 ns      3158395 ns          222 bytes_per_second=168.203k/s
-bench_elephant::jumbo_decrypt/32/512             3159243 ns      3159223 ns          222 bytes_per_second=168.158k/s
-bench_elephant::jumbo_encrypt/32/1024            5800209 ns      5800068 ns          121 bytes_per_second=177.8k/s
-bench_elephant::jumbo_decrypt/32/1024            5800989 ns      5800884 ns          121 bytes_per_second=177.775k/s
-bench_elephant::jumbo_encrypt/32/2048           11198365 ns     11198180 ns           63 bytes_per_second=181.391k/s
-bench_elephant::jumbo_decrypt/32/2048           11199990 ns     11199790 ns           62 bytes_per_second=181.365k/s
-bench_elephant::jumbo_encrypt/32/4096           21879261 ns     21879125 ns           32 bytes_per_second=184.251k/s
-bench_elephant::jumbo_decrypt/32/4096           21880806 ns     21880268 ns           32 bytes_per_second=184.241k/s
+bench_elephant::spongent_permutation<160, 1>         675 ns          675 ns      1036164 bytes_per_second=28.2462M/s
+bench_elephant::spongent_permutation<160, 80>      54064 ns        54063 ns        12944 bytes_per_second=361.265k/s
+bench_elephant::spongent_permutation<176, 1>         639 ns          639 ns      1095754 bytes_per_second=32.8431M/s
+bench_elephant::spongent_permutation<176, 90>      56916 ns        56915 ns        12297 bytes_per_second=377.48k/s
+bench_elephant::keccak_permutation<1>               64.4 ns         64.4 ns     10870294 bytes_per_second=370.269M/s
+bench_elephant::keccak_permutation<18>              1012 ns         1012 ns       691370 bytes_per_second=23.5483M/s
+bench_elephant::dumbo_encrypt/32/64               810610 ns       810605 ns          864 bytes_per_second=115.654k/s
+bench_elephant::dumbo_decrypt/32/64               810542 ns       810538 ns          864 bytes_per_second=115.664k/s
+bench_elephant::dumbo_encrypt/32/128             1134860 ns      1134833 ns          617 bytes_per_second=137.685k/s
+bench_elephant::dumbo_decrypt/32/128             1134771 ns      1134763 ns          617 bytes_per_second=137.694k/s
+bench_elephant::dumbo_encrypt/32/256             1783373 ns      1783331 ns          393 bytes_per_second=157.71k/s
+bench_elephant::dumbo_decrypt/32/256             1783303 ns      1783277 ns          393 bytes_per_second=157.715k/s
+bench_elephant::dumbo_encrypt/32/512             3188341 ns      3188320 ns          220 bytes_per_second=166.624k/s
+bench_elephant::dumbo_decrypt/32/512             3188489 ns      3188416 ns          220 bytes_per_second=166.619k/s
+bench_elephant::dumbo_encrypt/32/1024            5998457 ns      5998376 ns          117 bytes_per_second=171.922k/s
+bench_elephant::dumbo_decrypt/32/1024            5998382 ns      5998342 ns          117 bytes_per_second=171.923k/s
+bench_elephant::dumbo_encrypt/32/2048           11509963 ns     11509888 ns           61 bytes_per_second=176.479k/s
+bench_elephant::dumbo_decrypt/32/2048           11510028 ns     11509950 ns           61 bytes_per_second=176.478k/s
+bench_elephant::dumbo_encrypt/32/4096           22533223 ns     22533082 ns           31 bytes_per_second=178.904k/s
+bench_elephant::dumbo_decrypt/32/4096           22535620 ns     22534223 ns           31 bytes_per_second=178.895k/s
+bench_elephant::jumbo_encrypt/32/64               746437 ns       746411 ns          938 bytes_per_second=125.601k/s
+bench_elephant::jumbo_decrypt/32/64               747161 ns       747156 ns          937 bytes_per_second=125.476k/s
+bench_elephant::jumbo_encrypt/32/128             1090978 ns      1090970 ns          642 bytes_per_second=143.221k/s
+bench_elephant::jumbo_decrypt/32/128             1091762 ns      1091738 ns          641 bytes_per_second=143.12k/s
+bench_elephant::jumbo_encrypt/32/256             1780147 ns      1780136 ns          393 bytes_per_second=157.994k/s
+bench_elephant::jumbo_decrypt/32/256             1780949 ns      1780918 ns          393 bytes_per_second=157.924k/s
+bench_elephant::jumbo_encrypt/32/512             3158472 ns      3158452 ns          222 bytes_per_second=168.199k/s
+bench_elephant::jumbo_decrypt/32/512             3159294 ns      3159275 ns          222 bytes_per_second=168.156k/s
+bench_elephant::jumbo_encrypt/32/1024            5800189 ns      5800151 ns          121 bytes_per_second=177.797k/s
+bench_elephant::jumbo_decrypt/32/1024            5801250 ns      5801213 ns          121 bytes_per_second=177.765k/s
+bench_elephant::jumbo_encrypt/32/2048           11198258 ns     11198077 ns           63 bytes_per_second=181.393k/s
+bench_elephant::jumbo_decrypt/32/2048           11199316 ns     11199241 ns           63 bytes_per_second=181.374k/s
+bench_elephant::jumbo_encrypt/32/4096           21879577 ns     21879278 ns           32 bytes_per_second=184.25k/s
+bench_elephant::jumbo_decrypt/32/4096           21880699 ns     21880551 ns           32 bytes_per_second=184.239k/s
+bench_elephant::delirium_encrypt/32/64             13094 ns        13094 ns        53458 bytes_per_second=6.99216M/s
+bench_elephant::delirium_decrypt/32/64             12744 ns        12743 ns        54900 bytes_per_second=7.18428M/s
+bench_elephant::delirium_encrypt/32/128            19910 ns        19910 ns        35157 bytes_per_second=7.66388M/s
+bench_elephant::delirium_decrypt/32/128            19100 ns        19100 ns        36646 bytes_per_second=7.98878M/s
+bench_elephant::delirium_encrypt/32/256            31313 ns        31312 ns        22361 bytes_per_second=8.77156M/s
+bench_elephant::delirium_decrypt/32/256            29666 ns        29665 ns        23596 bytes_per_second=9.25853M/s
+bench_elephant::delirium_encrypt/32/512            54065 ns        54064 ns        12944 bytes_per_second=9.59593M/s
+bench_elephant::delirium_decrypt/32/512            50740 ns        50737 ns        13804 bytes_per_second=10.2252M/s
+bench_elephant::delirium_encrypt/32/1024           99556 ns        99556 ns         7031 bytes_per_second=10.1157M/s
+bench_elephant::delirium_decrypt/32/1024           92935 ns        92932 ns         7532 bytes_per_second=10.8367M/s
+bench_elephant::delirium_encrypt/32/2048          192850 ns       192849 ns         3630 bytes_per_second=10.286M/s
+bench_elephant::delirium_decrypt/32/2048          179465 ns       179462 ns         3900 bytes_per_second=11.0533M/s
+bench_elephant::delirium_encrypt/32/4096          379266 ns       379263 ns         1845 bytes_per_second=10.38M/s
+bench_elephant::delirium_decrypt/32/4096          352195 ns       352193 ns         1988 bytes_per_second=11.1779M/s
 ```
 
 ### On AWS Graviton3
 
 ```bash
-2022-07-27T06:23:52+00:00
+2022-07-29T06:54:03+00:00
 Running ./bench/a.out
 Run on (64 X 2100 MHz CPU s)
 CPU Caches:
@@ -243,44 +283,60 @@ Load Average: 0.08, 0.02, 0.01
 --------------------------------------------------------------------------------------------------------
 Benchmark                                              Time             CPU   Iterations UserCounters...
 --------------------------------------------------------------------------------------------------------
-bench_elephant::spongent_permutation<160, 1>         359 ns          359 ns      1950251 bytes_per_second=53.1412M/s
-bench_elephant::spongent_permutation<160, 80>      27872 ns        27871 ns        25117 bytes_per_second=700.771k/s
-bench_elephant::spongent_permutation<176, 1>         317 ns          317 ns      2211504 bytes_per_second=66.2635M/s
-bench_elephant::spongent_permutation<176, 90>      28472 ns        28471 ns        24569 bytes_per_second=754.612k/s
-bench_elephant::dumbo_encrypt/32/64               421381 ns       421372 ns         1661 bytes_per_second=222.487k/s
-bench_elephant::dumbo_decrypt/32/64               418750 ns       418741 ns         1671 bytes_per_second=223.885k/s
-bench_elephant::dumbo_encrypt/32/128              591661 ns       591645 ns         1183 bytes_per_second=264.094k/s
-bench_elephant::dumbo_decrypt/32/128              586169 ns       586156 ns         1194 bytes_per_second=266.567k/s
-bench_elephant::dumbo_encrypt/32/256              931719 ns       931699 ns          751 bytes_per_second=301.868k/s
-bench_elephant::dumbo_decrypt/32/256              920966 ns       920946 ns          760 bytes_per_second=305.392k/s
-bench_elephant::dumbo_encrypt/32/512             1668328 ns      1668273 ns          420 bytes_per_second=318.443k/s
-bench_elephant::dumbo_decrypt/32/512             1646523 ns      1646480 ns          425 bytes_per_second=322.658k/s
-bench_elephant::dumbo_encrypt/32/1024            3141793 ns      3141604 ns          223 bytes_per_second=328.256k/s
-bench_elephant::dumbo_decrypt/32/1024            3097316 ns      3097216 ns          226 bytes_per_second=332.96k/s
-bench_elephant::dumbo_encrypt/32/2048            6032175 ns      6032045 ns          116 bytes_per_second=336.743k/s
-bench_elephant::dumbo_decrypt/32/2048            5942672 ns      5942464 ns          118 bytes_per_second=341.82k/s
-bench_elephant::dumbo_encrypt/32/4096           11812083 ns     11811829 ns           59 bytes_per_second=341.289k/s
-bench_elephant::dumbo_decrypt/32/4096           11633437 ns     11633090 ns           60 bytes_per_second=346.533k/s
-bench_elephant::jumbo_encrypt/32/64               369764 ns       369756 ns         1895 bytes_per_second=253.545k/s
-bench_elephant::jumbo_decrypt/32/64               369386 ns       369376 ns         1895 bytes_per_second=253.806k/s
-bench_elephant::jumbo_encrypt/32/128              540493 ns       540481 ns         1295 bytes_per_second=289.094k/s
-bench_elephant::jumbo_decrypt/32/128              540477 ns       540466 ns         1295 bytes_per_second=289.103k/s
-bench_elephant::jumbo_encrypt/32/256              882684 ns       882665 ns          793 bytes_per_second=318.637k/s
-bench_elephant::jumbo_decrypt/32/256              883672 ns       883626 ns          793 bytes_per_second=318.291k/s
-bench_elephant::jumbo_encrypt/32/512             1567723 ns      1567682 ns          446 bytes_per_second=338.876k/s
-bench_elephant::jumbo_decrypt/32/512             1567208 ns      1567174 ns          447 bytes_per_second=338.986k/s
-bench_elephant::jumbo_encrypt/32/1024            2878903 ns      2878841 ns          243 bytes_per_second=358.217k/s
-bench_elephant::jumbo_decrypt/32/1024            2878564 ns      2878502 ns          243 bytes_per_second=358.259k/s
-bench_elephant::jumbo_encrypt/32/2048            5559794 ns      5559675 ns          126 bytes_per_second=365.354k/s
-bench_elephant::jumbo_decrypt/32/2048            5558188 ns      5558068 ns          126 bytes_per_second=365.46k/s
-bench_elephant::jumbo_encrypt/32/4096           10864093 ns     10863858 ns           64 bytes_per_second=371.07k/s
-bench_elephant::jumbo_decrypt/32/4096           10860059 ns     10859824 ns           64 bytes_per_second=371.208k/s
+bench_elephant::spongent_permutation<160, 1>         361 ns          361 ns      1941443 bytes_per_second=52.8981M/s
+bench_elephant::spongent_permutation<160, 80>      27873 ns        27873 ns        25115 bytes_per_second=700.731k/s
+bench_elephant::spongent_permutation<176, 1>         316 ns          316 ns      2213373 bytes_per_second=66.3474M/s
+bench_elephant::spongent_permutation<176, 90>      28464 ns        28464 ns        24597 bytes_per_second=754.802k/s
+bench_elephant::keccak_permutation<1>               41.1 ns         41.1 ns     17020969 bytes_per_second=579.426M/s
+bench_elephant::keccak_permutation<18>               520 ns          520 ns      1346944 bytes_per_second=45.8723M/s
+bench_elephant::dumbo_encrypt/32/64               422299 ns       422290 ns         1658 bytes_per_second=222.004k/s
+bench_elephant::dumbo_decrypt/32/64               418785 ns       418774 ns         1672 bytes_per_second=223.868k/s
+bench_elephant::dumbo_encrypt/32/128              592426 ns       592413 ns         1181 bytes_per_second=263.752k/s
+bench_elephant::dumbo_decrypt/32/128              586248 ns       586235 ns         1194 bytes_per_second=266.531k/s
+bench_elephant::dumbo_encrypt/32/256              932741 ns       932721 ns          751 bytes_per_second=301.537k/s
+bench_elephant::dumbo_decrypt/32/256              921221 ns       921183 ns          760 bytes_per_second=305.314k/s
+bench_elephant::dumbo_encrypt/32/512             1670313 ns      1670234 ns          419 bytes_per_second=318.069k/s
+bench_elephant::dumbo_decrypt/32/512             1646950 ns      1646914 ns          418 bytes_per_second=322.573k/s
+bench_elephant::dumbo_encrypt/32/1024            3143817 ns      3143749 ns          223 bytes_per_second=328.032k/s
+bench_elephant::dumbo_decrypt/32/1024            3097916 ns      3097848 ns          226 bytes_per_second=332.892k/s
+bench_elephant::dumbo_encrypt/32/2048            6035157 ns      6035025 ns          116 bytes_per_second=336.577k/s
+bench_elephant::dumbo_decrypt/32/2048            5944662 ns      5944533 ns          118 bytes_per_second=341.701k/s
+bench_elephant::dumbo_encrypt/32/4096           11818049 ns     11817791 ns           59 bytes_per_second=341.117k/s
+bench_elephant::dumbo_decrypt/32/4096           11636729 ns     11636475 ns           60 bytes_per_second=346.432k/s
+bench_elephant::jumbo_encrypt/32/64               369705 ns       369697 ns         1891 bytes_per_second=253.586k/s
+bench_elephant::jumbo_decrypt/32/64               370411 ns       370401 ns         1894 bytes_per_second=253.104k/s
+bench_elephant::jumbo_encrypt/32/128              541387 ns       541365 ns         1289 bytes_per_second=288.622k/s
+bench_elephant::jumbo_decrypt/32/128              543241 ns       543220 ns         1294 bytes_per_second=287.637k/s
+bench_elephant::jumbo_encrypt/32/256              882570 ns       882551 ns          793 bytes_per_second=318.678k/s
+bench_elephant::jumbo_decrypt/32/256              885685 ns       885666 ns          792 bytes_per_second=317.558k/s
+bench_elephant::jumbo_encrypt/32/512             1566715 ns      1566675 ns          447 bytes_per_second=339.094k/s
+bench_elephant::jumbo_decrypt/32/512             1567668 ns      1567620 ns          447 bytes_per_second=338.89k/s
+bench_elephant::jumbo_encrypt/32/1024            2877745 ns      2877659 ns          243 bytes_per_second=358.364k/s
+bench_elephant::jumbo_decrypt/32/1024            2878913 ns      2878850 ns          243 bytes_per_second=358.216k/s
+bench_elephant::jumbo_encrypt/32/2048            5557484 ns      5557337 ns          126 bytes_per_second=365.508k/s
+bench_elephant::jumbo_decrypt/32/2048            5558373 ns      5558252 ns          126 bytes_per_second=365.448k/s
+bench_elephant::jumbo_encrypt/32/4096           10867850 ns     10867613 ns           64 bytes_per_second=370.942k/s
+bench_elephant::jumbo_decrypt/32/4096           10858323 ns     10858086 ns           64 bytes_per_second=371.267k/s
+bench_elephant::delirium_encrypt/32/64              8771 ns         8771 ns        79922 bytes_per_second=10.4385M/s
+bench_elephant::delirium_decrypt/32/64              8909 ns         8909 ns        78592 bytes_per_second=10.2769M/s
+bench_elephant::delirium_encrypt/32/128            13450 ns        13450 ns        52055 bytes_per_second=11.3449M/s
+bench_elephant::delirium_decrypt/32/128            13641 ns        13640 ns        51361 bytes_per_second=11.1866M/s
+bench_elephant::delirium_encrypt/32/256            21275 ns        21274 ns        32901 bytes_per_second=12.9105M/s
+bench_elephant::delirium_decrypt/32/256            21470 ns        21470 ns        32617 bytes_per_second=12.7929M/s
+bench_elephant::delirium_encrypt/32/512            36902 ns        36901 ns        18969 bytes_per_second=14.059M/s
+bench_elephant::delirium_decrypt/32/512            37090 ns        37090 ns        18870 bytes_per_second=13.9877M/s
+bench_elephant::delirium_encrypt/32/1024           68152 ns        68150 ns        10276 bytes_per_second=14.7774M/s
+bench_elephant::delirium_decrypt/32/1024           68361 ns        68359 ns        10241 bytes_per_second=14.7322M/s
+bench_elephant::delirium_encrypt/32/2048          132156 ns       132153 ns         5298 bytes_per_second=15.0102M/s
+bench_elephant::delirium_decrypt/32/2048          132476 ns       132471 ns         5284 bytes_per_second=14.9741M/s
+bench_elephant::delirium_encrypt/32/4096          260077 ns       260071 ns         2692 bytes_per_second=15.1373M/s
+bench_elephant::delirium_decrypt/32/4096          260673 ns       260668 ns         2686 bytes_per_second=15.1026M/s
 ```
 
 ### On Intel(R) Xeon(R) CPU E5-2686 v4 @ 2.30GHz
 
 ```bash
-2022-07-27T06:25:21+00:00
+2022-07-29T06:55:46+00:00
 Running ./bench/a.out
 Run on (4 X 2300 MHz CPU s)
 CPU Caches:
@@ -288,40 +344,56 @@ CPU Caches:
   L1 Instruction 32 KiB (x2)
   L2 Unified 256 KiB (x2)
   L3 Unified 46080 KiB (x1)
-Load Average: 0.15, 0.03, 0.01
+Load Average: 0.08, 0.02, 0.01
 --------------------------------------------------------------------------------------------------------
 Benchmark                                              Time             CPU   Iterations UserCounters...
 --------------------------------------------------------------------------------------------------------
-bench_elephant::spongent_permutation<160, 1>         410 ns          410 ns      1706987 bytes_per_second=46.557M/s
-bench_elephant::spongent_permutation<160, 80>      32854 ns        32852 ns        21284 bytes_per_second=594.517k/s
-bench_elephant::spongent_permutation<176, 1>         451 ns          451 ns      1553989 bytes_per_second=46.525M/s
-bench_elephant::spongent_permutation<176, 90>      39771 ns        39770 ns        17584 bytes_per_second=540.217k/s
-bench_elephant::dumbo_encrypt/32/64               489734 ns       489705 ns         1429 bytes_per_second=191.442k/s
-bench_elephant::dumbo_decrypt/32/64               482515 ns       482519 ns         1451 bytes_per_second=194.293k/s
-bench_elephant::dumbo_encrypt/32/128              684228 ns       684233 ns         1023 bytes_per_second=228.358k/s
-bench_elephant::dumbo_decrypt/32/128              675428 ns       675421 ns         1036 bytes_per_second=231.337k/s
-bench_elephant::dumbo_encrypt/32/256             1074236 ns      1074143 ns          652 bytes_per_second=261.837k/s
-bench_elephant::dumbo_decrypt/32/256             1061743 ns      1061700 ns          660 bytes_per_second=264.905k/s
-bench_elephant::dumbo_encrypt/32/512             1918281 ns      1918188 ns          365 bytes_per_second=276.954k/s
-bench_elephant::dumbo_decrypt/32/512             1900568 ns      1900530 ns          369 bytes_per_second=279.527k/s
-bench_elephant::dumbo_encrypt/32/1024            3606325 ns      3606089 ns          194 bytes_per_second=285.975k/s
-bench_elephant::dumbo_decrypt/32/1024            3573929 ns      3573724 ns          196 bytes_per_second=288.565k/s
-bench_elephant::dumbo_encrypt/32/2048            6917926 ns      6917513 ns          101 bytes_per_second=293.639k/s
-bench_elephant::dumbo_decrypt/32/2048            6860043 ns      6859572 ns          102 bytes_per_second=296.119k/s
-bench_elephant::dumbo_encrypt/32/4096           13529290 ns     13529030 ns           52 bytes_per_second=297.97k/s
-bench_elephant::dumbo_decrypt/32/4096           13421516 ns     13420351 ns           52 bytes_per_second=300.383k/s
-bench_elephant::jumbo_encrypt/32/64               522149 ns       522124 ns         1339 bytes_per_second=179.555k/s
-bench_elephant::jumbo_decrypt/32/64               522740 ns       522713 ns         1340 bytes_per_second=179.353k/s
-bench_elephant::jumbo_encrypt/32/128              764027 ns       763980 ns          917 bytes_per_second=204.521k/s
-bench_elephant::jumbo_decrypt/32/128              765668 ns       765638 ns          915 bytes_per_second=204.078k/s
-bench_elephant::jumbo_encrypt/32/256             1247589 ns      1247489 ns          561 bytes_per_second=225.453k/s
-bench_elephant::jumbo_decrypt/32/256             1250891 ns      1250826 ns          560 bytes_per_second=224.852k/s
-bench_elephant::jumbo_encrypt/32/512             2215333 ns      2215152 ns          316 bytes_per_second=239.825k/s
-bench_elephant::jumbo_decrypt/32/512             2221815 ns      2221708 ns          314 bytes_per_second=239.118k/s
-bench_elephant::jumbo_encrypt/32/1024            4065996 ns      4065554 ns          172 bytes_per_second=253.655k/s
-bench_elephant::jumbo_decrypt/32/1024            4084765 ns      4084644 ns          171 bytes_per_second=252.47k/s
-bench_elephant::jumbo_encrypt/32/2048            7854125 ns      7854056 ns           89 bytes_per_second=258.624k/s
-bench_elephant::jumbo_decrypt/32/2048            7887482 ns      7887411 ns           89 bytes_per_second=257.531k/s
-bench_elephant::jumbo_encrypt/32/4096           15347465 ns     15347333 ns           46 bytes_per_second=262.668k/s
-bench_elephant::jumbo_decrypt/32/4096           15420630 ns     15420471 ns           45 bytes_per_second=261.422k/s
+bench_elephant::spongent_permutation<160, 1>         406 ns          406 ns      1724557 bytes_per_second=46.9871M/s
+bench_elephant::spongent_permutation<160, 80>      32410 ns        32410 ns        21594 bytes_per_second=602.634k/s
+bench_elephant::spongent_permutation<176, 1>         438 ns          438 ns      1596130 bytes_per_second=47.8561M/s
+bench_elephant::spongent_permutation<176, 90>      40568 ns        40566 ns        17252 bytes_per_second=529.611k/s
+bench_elephant::keccak_permutation<1>               86.7 ns         86.7 ns      8086390 bytes_per_second=274.973M/s
+bench_elephant::keccak_permutation<18>              1468 ns         1468 ns       476544 bytes_per_second=16.2379M/s
+bench_elephant::dumbo_encrypt/32/64               482460 ns       482443 ns         1451 bytes_per_second=194.323k/s
+bench_elephant::dumbo_decrypt/32/64               488780 ns       488737 ns         1433 bytes_per_second=191.821k/s
+bench_elephant::dumbo_encrypt/32/128              675070 ns       675062 ns         1036 bytes_per_second=231.46k/s
+bench_elephant::dumbo_decrypt/32/128              683127 ns       683118 ns         1024 bytes_per_second=228.731k/s
+bench_elephant::dumbo_encrypt/32/256             1060730 ns      1060660 ns          660 bytes_per_second=265.165k/s
+bench_elephant::dumbo_decrypt/32/256             1071774 ns      1071708 ns          653 bytes_per_second=262.432k/s
+bench_elephant::dumbo_encrypt/32/512             1895863 ns      1895742 ns          369 bytes_per_second=280.233k/s
+bench_elephant::dumbo_decrypt/32/512             1913229 ns      1913143 ns          366 bytes_per_second=277.684k/s
+bench_elephant::dumbo_encrypt/32/1024            3566629 ns      3566373 ns          196 bytes_per_second=289.159k/s
+bench_elephant::dumbo_decrypt/32/1024            3596799 ns      3596427 ns          195 bytes_per_second=286.743k/s
+bench_elephant::dumbo_encrypt/32/2048            6844614 ns      6843861 ns          102 bytes_per_second=296.799k/s
+bench_elephant::dumbo_decrypt/32/2048            6897452 ns      6897017 ns          101 bytes_per_second=294.511k/s
+bench_elephant::dumbo_encrypt/32/4096           13405258 ns     13404917 ns           52 bytes_per_second=300.729k/s
+bench_elephant::dumbo_decrypt/32/4096           13494411 ns     13494493 ns           52 bytes_per_second=298.733k/s
+bench_elephant::jumbo_encrypt/32/64               520698 ns       520676 ns         1345 bytes_per_second=180.054k/s
+bench_elephant::jumbo_decrypt/32/64               519027 ns       519000 ns         1349 bytes_per_second=180.636k/s
+bench_elephant::jumbo_encrypt/32/128              760177 ns       760161 ns          921 bytes_per_second=205.549k/s
+bench_elephant::jumbo_decrypt/32/128              757816 ns       757821 ns          924 bytes_per_second=206.183k/s
+bench_elephant::jumbo_encrypt/32/256             1239241 ns      1239249 ns          564 bytes_per_second=226.952k/s
+bench_elephant::jumbo_decrypt/32/256             1236019 ns      1235975 ns          567 bytes_per_second=227.553k/s
+bench_elephant::jumbo_encrypt/32/512             2198475 ns      2198465 ns          319 bytes_per_second=241.646k/s
+bench_elephant::jumbo_decrypt/32/512             2192996 ns      2192930 ns          319 bytes_per_second=242.256k/s
+bench_elephant::jumbo_encrypt/32/1024            4036555 ns      4036586 ns          173 bytes_per_second=255.476k/s
+bench_elephant::jumbo_decrypt/32/1024            4025258 ns      4025103 ns          174 bytes_per_second=256.205k/s
+bench_elephant::jumbo_encrypt/32/2048            7791302 ns      7790816 ns           90 bytes_per_second=260.724k/s
+bench_elephant::jumbo_decrypt/32/2048            7773041 ns      7772543 ns           90 bytes_per_second=261.337k/s
+bench_elephant::jumbo_encrypt/32/4096           15226107 ns     15224531 ns           46 bytes_per_second=264.786k/s
+bench_elephant::jumbo_decrypt/32/4096           15185116 ns     15184138 ns           46 bytes_per_second=265.491k/s
+bench_elephant::delirium_encrypt/32/64             18888 ns        18887 ns        37064 bytes_per_second=4.84736M/s
+bench_elephant::delirium_decrypt/32/64             18976 ns        18975 ns        36959 bytes_per_second=4.8249M/s
+bench_elephant::delirium_encrypt/32/128            28135 ns        28133 ns        24871 bytes_per_second=5.42383M/s
+bench_elephant::delirium_decrypt/32/128            28174 ns        28172 ns        24862 bytes_per_second=5.41629M/s
+bench_elephant::delirium_encrypt/32/256            43560 ns        43556 ns        16072 bytes_per_second=6.3058M/s
+bench_elephant::delirium_decrypt/32/256            43471 ns        43469 ns        16100 bytes_per_second=6.31853M/s
+bench_elephant::delirium_encrypt/32/512            74289 ns        74284 ns         9426 bytes_per_second=6.98401M/s
+bench_elephant::delirium_decrypt/32/512            74207 ns        74203 ns         9432 bytes_per_second=6.99158M/s
+bench_elephant::delirium_encrypt/32/1024          135961 ns       135958 ns         5156 bytes_per_second=7.40732M/s
+bench_elephant::delirium_decrypt/32/1024          135209 ns       135208 ns         5173 bytes_per_second=7.4484M/s
+bench_elephant::delirium_encrypt/32/2048          261226 ns       261223 ns         2679 bytes_per_second=7.59367M/s
+bench_elephant::delirium_decrypt/32/2048          260364 ns       260362 ns         2688 bytes_per_second=7.61879M/s
+bench_elephant::delirium_encrypt/32/4096          512829 ns       512786 ns         1365 bytes_per_second=7.67722M/s
+bench_elephant::delirium_decrypt/32/4096          512671 ns       512642 ns         1366 bytes_per_second=7.67937M/s
 ```

@@ -86,12 +86,12 @@ constexpr uint8_t RevLCounter176[]{
   206, 102, 50,  152, 76,  166, 82,  168, 84,  170, 212, 234, 244, 250, 252
 };
 
-// Ensure that either Spongent-π[160] or Spongent-π[176] is being applied on
-// permutation state, in compile-time
+// Ensure that any of {Spongent-π[160], Spongent-π[176], Keccak-f[200]}
+// permutation is being applied on permutation state, in compile-time
 constexpr inline static bool
 check_state_bit_len(const size_t slen)
 {
-  return (slen == 160) || (slen == 176);
+  return (slen == 160) || (slen == 176) || (slen == 200);
 }
 
 // XORs precomputed round constant into Spongent-π-W permutation state

@@ -1,21 +1,21 @@
 #pragma once
 #include "aead.hpp"
 
-// Jumbo Authenticated Encryption with Associated Data
-namespace jumbo {
+// Delirium Authenticated Encryption with Associated Data
+namespace delirium {
 
-// No. of rounds Spongent-π[176] permutation is applied on state
-constexpr size_t ROUNDS = 90;
+// No. of rounds Keccak-f[200] permutation is applied on state
+constexpr size_t ROUNDS = keccak::ROUNDS;
 
-// Spongent-π[176] permutation state is 176 -bit wide
-constexpr size_t SLEN = 176;
+// Keccak-f[200] permutation state is 200 -bit wide
+constexpr size_t SLEN = 200;
 
-// Jumbo AEAD's authentication tag is 64 -bit wide
-constexpr size_t TLEN = 64;
+// Delirium AEAD's authentication tag is 128 -bit wide
+constexpr size_t TLEN = 128;
 
 // Given 16 -bytes secret key, 12 -bytes public message nonce, N -bytes
 // associated data & M -bytes plain text, this routine computes M -bytes
-// encrypted text & 8 -bytes authentication tag, using Jumbo AEAD scheme
+// encrypted text & 16 -bytes authentication tag, using Delirium AEAD scheme
 // | M, N >= 0
 //
 // Note, associated data is never encrypted, but only authenticated.
@@ -31,7 +31,7 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
         const uint8_t* const __restrict txt,   // M -bytes plain text
         uint8_t* const __restrict enc,         // M -bytes encrypted text
         const size_t ctlen,                    // len(txt) = len(enc) = M | >= 0
-        uint8_t* const __restrict tag          // 64 -bit authentication tag
+        uint8_t* const __restrict tag          // 128 -bit authentication tag
 )
 {
   constexpr size_t a = SLEN;
@@ -41,10 +41,10 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
   elephant::encrypt<a, b, c>(key, nonce, data, dlen, txt, enc, ctlen, tag);
 }
 
-// Given 16 -bytes secret key, 12 -bytes public message nonce, 8 -bytes
+// Given 16 -bytes secret key, 12 -bytes public message nonce, 16 -bytes
 // authentication tag, N -bytes associated data & M -bytes encrypted text, this
-// routine computes M -bytes plain text & boolean verification flag, using Jumbo
-// AEAD scheme | M, N >= 0
+// routine computes M -bytes plain text & boolean verification flag, using
+// Delirium AEAD scheme | M, N >= 0
 //
 // Note, M -bytes plain text is released only when authentication passes i.e.
 // boolean verification flag holds truth value. Otherwise one should find zero
@@ -55,7 +55,7 @@ encrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
 static bool
 decrypt(const uint8_t* const __restrict key,   // 128 -bit secret key
         const uint8_t* const __restrict nonce, // 96 -bit nonce
-        const uint8_t* const __restrict tag,   // 64 -bit authentication tag
+        const uint8_t* const __restrict tag,   // 128 -bit authentication tag
         const uint8_t* const __restrict data,  // N -bytes associated data
         const size_t dlen,                     // len(data) = N | >= 0
         const uint8_t* const __restrict enc,   // M -bytes encrypted text

@@ -1,4 +1,5 @@
 #pragma once
+#include "keccak.hpp"
 #include "spongent.hpp"
 #include "utils.hpp"
 #include <benchmark/benchmark.h>
@@ -25,6 +26,24 @@ spongent_permutation(benchmark::State& state)
   }
 
   state.SetBytesProcessed(static_cast<int64_t>(state.iterations() * sbytes));
+}
+
+// Benchmarks Keccak-f[200] permutation for `rounds` -many rounds
+template<const size_t rounds>
+static void
+keccak_permutation(benchmark::State& state)
+{
+  uint8_t st[25]{};
+  random_data(st, sizeof(st));
+
+  for (auto _ : state) {
+    keccak::permute<rounds>(st);
+
+    benchmark::DoNotOptimize(st);
+    benchmark::ClobberMemory();
+  }
+
+  state.SetBytesProcessed(static_cast<int64_t>(state.iterations() * 25));
 }
 
 }
