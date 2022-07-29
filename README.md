@@ -397,3 +397,33 @@ bench_elephant::delirium_decrypt/32/2048          260364 ns       260362 ns     
 bench_elephant::delirium_encrypt/32/4096          512829 ns       512786 ns         1365 bytes_per_second=7.67722M/s
 bench_elephant::delirium_decrypt/32/4096          512671 ns       512642 ns         1366 bytes_per_second=7.67937M/s
 ```
+
+## Usage
+
+Elephant is a zero-dependency, header-only C++ library ( with additional support for C wrapper [interface](wrapper/elephant.cpp), which is used for generating shared library object with C-ABI ), which can be pretty easily used in your project. 
+
+There are three AEAD schemes in Elephant cipher suite, which are implemented here. All of them have common `encrypt`/ `decrypt` interfaces, just one difference to note that, Delirium uses 16 -bytes authentication tag, while both Dumbo & Jumbo uses 8 -bytes authentication tag.
+
+Scheme | Namespace | Header
+--- | --- | ---
+Dumbo AEAD | `dumbo::` | [dumbo.hpp](./include/dumbo.hpp)
+Jumbo AEAD | `jumbo::` | [jumbo.hpp](./include/jumbo.hpp)
+Delirium AEAD | `delirium::` | [delirium.hpp](./include/delirium.hpp)
+
+I keep usage example of Dumbo, Jumbo & Delirium AEAD
+
+- [Dumbo](./example/dumbo.cpp)
+- [Jumbo](./example/jumbo.cpp)
+- [Delirium](./example/delirium.cpp)
+
+```bash
+Dumbo AEAD
+
+Key       : 4ea28a82a329104a5f32b31dbb3a8f04
+Nonce     : 9dc8e14a149ab54744b2159b
+Data      : 76d53bd2945b8f9c7b22cbec6a7ff9d0fad3e37bd6b1288eb860124539852932
+Text      : 04cd0f374ea2224945b301b302ce3fea68803c76a7944fbabebe1e9e2102d9c6
+Encrypted : 48a9807d4178baccaf0fc7ecd9a4a625217e67457b0671cc4e540a92db4a41f8
+Decrypted : 04cd0f374ea2224945b301b302ce3fea68803c76a7944fbabebe1e9e2102d9c6
+Tag       : e594cf2b6a7db6c0
+```
