@@ -2,6 +2,7 @@
 
 import elephant
 import numpy as np
+from random import Random, randint
 
 u8 = np.uint8
 
@@ -211,6 +212,149 @@ def test_delirium_kat():
 
             # don't need this line, so discard
             fd.readline()
+
+
+def flip_bit(inp: bytes) -> bytes:
+    """
+    Randomly selects a byte offset of a given byte array ( inp ), whose single random bit
+    will be flipped. Input is **not** mutated & single bit flipped byte array is returned back.
+    """
+    arr = bytearray(inp)
+    ilen = len(arr)
+
+    idx = randint(0, ilen - 1)
+    bidx = randint(0, 7)
+
+    mask0 = (0xFF << (bidx + 1)) & 0xFF
+    mask1 = (0xFF >> (8 - bidx)) & 0xFF
+    mask2 = 1 << bidx
+
+    msb = arr[idx] & mask0
+    lsb = arr[idx] & mask1
+    bit = (arr[idx] & mask2) >> bidx
+
+    arr[idx] = msb | ((1 - bit) << bidx) | lsb
+    return bytes(arr)
+
+
+def test_dumbo_authentication():
+    """
+    Test that Dumbo authentication failure happens when random bit of associated data
+    and/ or encrypted text are flipped. Also it's ensured that in case of authentication
+    failure unverified plain text is never released, instead memory allocation for
+    decrypted plain text is zeroed.
+    """
+    rng = Random()
+
+    key = rng.randbytes(16)
+    nonce = rng.randbytes(12)
+    data = rng.randbytes(32)
+    txt = rng.randbytes(32)
+
+    enc, tag = elephant.dumbo_encrypt(key, nonce, data, txt)
+
+    # case 0
+    data_ = flip_bit(data)
+    flg, dec = elephant.dumbo_decrypt(key, nonce, tag, data_, enc)
+
+    assert not flg, "Dumbo authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+    # case 1
+    enc_ = flip_bit(enc)
+    flg, dec = elephant.dumbo_decrypt(key, nonce, tag, data, enc_)
+
+    assert not flg, "Dumbo authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+    # case 2
+    flg, dec = elephant.dumbo_decrypt(key, nonce, tag, data_, enc_)
+
+    assert not flg, "Dumbo authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+
+def test_jumbo_authentication():
+    """
+    Test that Jumbo authentication failure happens when random bit of associated data
+    and/ or encrypted text are flipped. Also it's ensured that in case of authentication
+    failure unverified plain text is never released, instead memory allocation for
+    decrypted plain text is zeroed.
+    """
+    rng = Random()
+
+    key = rng.randbytes(16)
+    nonce = rng.randbytes(12)
+    data = rng.randbytes(32)
+    txt = rng.randbytes(32)
+
+    enc, tag = elephant.jumbo_encrypt(key, nonce, data, txt)
+
+    # case 0
+    data_ = flip_bit(data)
+    flg, dec = elephant.jumbo_decrypt(key, nonce, tag, data_, enc)
+
+    assert not flg, "Jumbo authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+    # case 1
+    enc_ = flip_bit(enc)
+    flg, dec = elephant.jumbo_decrypt(key, nonce, tag, data, enc_)
+
+    assert not flg, "Jumbo authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+    # case 2
+    flg, dec = elephant.jumbo_decrypt(key, nonce, tag, data_, enc_)
+
+    assert not flg, "Jumbo authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+
+def test_delirium_authentication():
+    """
+    Test that Delirium authentication failure happens when random bit of associated data
+    and/ or encrypted text are flipped. Also it's ensured that in case of authentication
+    failure unverified plain text is never released, instead memory allocation for
+    decrypted plain text is zeroed.
+    """
+    rng = Random()
+
+    key = rng.randbytes(16)
+    nonce = rng.randbytes(12)
+    data = rng.randbytes(32)
+    txt = rng.randbytes(32)
+
+    enc, tag = elephant.delirium_encrypt(key, nonce, data, txt)
+
+    # case 0
+    data_ = flip_bit(data)
+    flg, dec = elephant.delirium_decrypt(key, nonce, tag, data_, enc)
+
+    assert not flg, "Delirium authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+    # case 1
+    enc_ = flip_bit(enc)
+    flg, dec = elephant.delirium_decrypt(key, nonce, tag, data, enc_)
+
+    assert not flg, "Delirium authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
+
+    # case 2
+    flg, dec = elephant.delirium_decrypt(key, nonce, tag, data_, enc_)
+
+    assert not flg, "Delirium authentication must fail !"
+    for i in range(32):
+        assert dec[i] == 0, "Unverified plain text must not be released !"
 
 
 if __name__ == "__main__":
